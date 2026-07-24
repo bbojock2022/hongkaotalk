@@ -122,8 +122,6 @@ export default function ChatApp({ user }) {
             />
 
             <MessageInput
-              user={user}
-              roomId={currentRoom.id}
               members={members}
               replyingTo={replyingTo}
               onCancelReply={() => setReplyingTo(null)}

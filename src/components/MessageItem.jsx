@@ -52,7 +52,7 @@ export default function MessageItem({ message, isOwn, myNickname, onDelete, onRe
 
         {message.replyTo && (
           <div className="text-xs text-gray-500 border-l-2 border-base-600 pl-2 mt-0.5 mb-1 truncate max-w-md">
-            ↪ {sanitizeText(message.replyTo.senderNickname)}: {sanitizeText(message.replyTo.text || '(이미지)')}
+            ↪ {sanitizeText(message.replyTo.senderNickname)}: {sanitizeText(message.replyTo.text || '')}
           </div>
         )}
 
@@ -60,15 +60,6 @@ export default function MessageItem({ message, isOwn, myNickname, onDelete, onRe
           <p className="text-sm text-gray-300 whitespace-pre-wrap break-words">
             {highlightMentions(sanitizeText(message.text), myNickname)}
           </p>
-        )}
-
-        {message.imageURL && (
-          <img
-            src={message.imageURL}
-            alt="첨부 이미지"
-            loading="lazy"
-            className="mt-1.5 max-w-xs max-h-64 rounded-lg border border-base-700 object-cover"
-          />
         )}
       </div>
 

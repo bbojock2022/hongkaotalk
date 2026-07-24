@@ -1,16 +1,13 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import EmojiPicker from 'emoji-picker-react';
 import { validateMessage } from '../utils/validate';
 import { sanitizeText } from '../utils/sanitize';
-import { uploadChatImage } from '../firebase/storage';
 
-export default function MessageInput({ user, roomId, members, replyingTo, onCancelReply, onSend, rateLimiter }) {
+export default function MessageInput({ members, replyingTo, onCancelReply, onSend, rateLimiter }) {
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [mentionQuery, setMentionQuery] = useState(null);
-  const fileInputRef = useRef(null);
 
   function handleTextChange(e) {
     const val = e.target.value;
@@ -48,22 +45,6 @@ export default function MessageInput({ user, roomId, members, replyingTo, onCanc
     });
     setText('');
     onCancelReply?.();
-  }
-
-  async function handleImagePick(e) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setUploading(true);
-    setError('');
-    try {
-      const url = await uploadChatImage(roomId, user.uid, file);
-      onSend({ imageURL: url, mentions: [], replyTo: null });
-    } catch (err) {
-      setError(err.message || '이미지 업로드에 실패했습니다.');
-    } finally {
-      setUploading(false);
-    }
   }
 
   const filteredMembers =
@@ -109,17 +90,6 @@ export default function MessageInput({ user, roomId, members, replyingTo, onCanc
       {error && <p className="text-xs text-danger mb-1.5">{error}</p>}
 
       <form onSubmit={handleSubmit} className="flex items-end gap-2">
-        <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImagePick} className="hidden" />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          title="이미지 첨부"
-          className="w-9 h-9 shrink-0 rounded-lg bg-base-800 hover:bg-base-700 flex items-center justify-center text-lg disabled:opacity-50"
-        >
-          {uploading ? '⏳' : '🖼'}
-        </button>
-
         <textarea
           value={text}
           onChange={handleTextChange}

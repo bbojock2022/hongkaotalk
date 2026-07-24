@@ -90,12 +90,11 @@ export function listenMessages(roomId, callback, messageLimit = 100) {
   });
 }
 
-export async function sendMessage(roomId, { senderUid, senderNickname, text, imageURL, replyTo, mentions }) {
+export async function sendMessage(roomId, { senderUid, senderNickname, text, replyTo, mentions }) {
   await addDoc(collection(db, 'rooms', roomId, 'messages'), {
     senderUid,
     senderNickname,
     text: text || null,
-    imageURL: imageURL || null,
     replyTo: replyTo || null,
     mentions: mentions || [],
     deleted: false,
@@ -107,7 +106,6 @@ export async function deleteMessage(roomId, messageId) {
   await updateDoc(doc(db, 'rooms', roomId, 'messages', messageId), {
     deleted: true,
     text: null,
-    imageURL: null,
   });
 }
 
