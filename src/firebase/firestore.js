@@ -5,6 +5,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  getDoc,
   query,
   orderBy,
   limit,
@@ -58,6 +59,11 @@ export async function deleteRoom(roomId) {
   await deleteDoc(doc(db, 'rooms', roomId));
 }
 
+export async function getRoomById(roomId) {
+  const snap = await getDoc(doc(db, 'rooms', roomId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
 // ---------- 참여자(방 멤버) ----------
 
 export async function joinRoomMembers(roomId, uid, nickname) {
@@ -69,6 +75,10 @@ export async function joinRoomMembers(roomId, uid, nickname) {
 
 export async function leaveRoomMembers(roomId, uid) {
   await deleteDoc(doc(db, 'rooms', roomId, 'members', uid)).catch(() => {});
+}
+
+export async function kickMember(roomId, uid) {
+  await deleteDoc(doc(db, 'rooms', roomId, 'members', uid));
 }
 
 export function listenRoomMembers(roomId, callback) {
@@ -127,4 +137,12 @@ export async function searchMessages(roomId, keyword) {
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .filter((m) => !m.deleted && m.text && m.text.toLowerCase().includes(kw));
+}
+
+// ---------- 유저 검색 (친구 추가용) ----------
+
+export async function findUsersByNickname(nickname) {
+  const q = query(collection(db, 'users'), where('nickname', '==', nickname.trim()));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
 }
