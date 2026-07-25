@@ -43,6 +43,7 @@ export default function ChatApp({ user }) {
   const [replyingTo, setReplyingTo] = useState(null);
   const [mobilePanel, setMobilePanel] = useState('rooms'); // rooms | chat | members
   const [confirmDeleteRoom, setConfirmDeleteRoom] = useState(false);
+  const [confirmLeaveRoom, setConfirmLeaveRoom] = useState(false);
   const [kickTarget, setKickTarget] = useState(null);
   const [joinError, setJoinError] = useState('');
   const rateLimiter = useRef(new MessageRateLimiter());
@@ -67,8 +68,9 @@ export default function ChatApp({ user }) {
     let cancelled = false;
 
     async function join() {
+      let isNewMember = false;
       try {
-        await joinRoomMembers(currentRoom.id, user.uid, user.displayName);
+        isNewMember = await joinRoomMembers(currentRoom.id, user.uid, user.displayName);
       } catch (err) {
         // 강퇴당한 방에는 재입장이 규칙으로 차단됨
         if (!cancelled) {
@@ -90,7 +92,9 @@ export default function ChatApp({ user }) {
       }
       upsertMyRoom(user.uid, currentRoom, extra);
 
-      if (currentRoom.type !== 'dm') {
+      // 방을 잠깐 보다가 다른 방으로 넘어가거나 브라우저를 닫는 것은 '퇴장'이 아니므로,
+      // 진짜로 이 방에 처음 들어온 순간에만 입장 메시지를 보냅니다.
+      if (currentRoom.type !== 'dm' && isNewMember) {
         sendSystemMessage(currentRoom.id, `${user.displayName}님이 입장했습니다.`);
       }
     }
@@ -110,10 +114,9 @@ export default function ChatApp({ user }) {
       cancelled = true;
       unsubMsg();
       unsubMembers();
-      leaveRoomMembers(currentRoom.id, user.uid);
-      if (currentRoom.type !== 'dm') {
-        sendSystemMessage(currentRoom.id, `${user.displayName}님이 퇴장했습니다.`).catch(() => {});
-      }
+      // 여기서는 멤버십을 지우거나 '퇴장' 메시지를 보내지 않습니다 — 단순히 다른 화면을 보거나
+      // 브라우저를 닫은 것과, 실제로 방을 나가는 것을 명확히 구분하기 위함입니다.
+      // 실제로 방을 나가려면 상단의 '나가기' 버튼을 사용하세요 (handleLeaveRoom).
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRoom?.id]);
@@ -174,6 +177,15 @@ export default function ChatApp({ user }) {
     setKickTarget(null);
   }
 
+  async function handleLeaveRoom() {
+    await leaveRoomMembers(currentRoom.id, user.uid);
+    await removeMyRoom(user.uid, currentRoom.id);
+    await sendSystemMessage(currentRoom.id, `${user.displayName}님이 퇴장했습니다.`).catch(() => {});
+    setConfirmLeaveRoom(false);
+    setCurrentRoom(null);
+    setMobilePanel('rooms');
+  }
+
   async function handleJoinRoomInvite(invite) {
     const room = await getRoomById(invite.roomId);
     await declineRoomInvite(user.uid, invite.id);
@@ -198,6 +210,9 @@ export default function ChatApp({ user }) {
         members.find((m) => m.uid !== user.uid)?.nickname ||
         '상대방'
       : null;
+  // onlineUsers는 브라우저 종료/네트워크 끊김을 Realtime Database의 onDisconnect로 감지하는
+  // 신뢰도 높은 전역 접속 상태입니다 (presence.js). 방을 그냥 안 보고 있는 것과는 다릅니다.
+  const dmOtherOnline = dmOtherUid ? onlineUsers.some((u) => u.uid === dmOtherUid && u.state === 'online') : false;
 
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-base-950 text-gray-100">
@@ -208,6 +223,7 @@ export default function ChatApp({ user }) {
           myRooms={myRooms}
           currentRoomId={currentRoom?.id}
           currentRoom={currentRoom}
+          onlineUsers={onlineUsers}
           onSelectRoom={handleSelectRoom}
           onSelectMyRoom={handleSelectMyRoom}
           onCreateClick={() => setShowCreate(true)}
@@ -233,6 +249,14 @@ export default function ChatApp({ user }) {
               <h2 className="font-semibold truncate">
                 {currentRoom.type === 'dm' ? dmOtherNickname : currentRoom.name}
               </h2>
+              {currentRoom.type === 'dm' && (
+                <span
+                  className={`flex items-center gap-1 text-xs shrink-0 ${dmOtherOnline ? 'text-online' : 'text-gray-500'}`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${dmOtherOnline ? 'bg-online' : 'bg-base-600'}`} />
+                  {dmOtherOnline ? '온라인' : '오프라인'}
+                </span>
+              )}
               {currentRoom.type !== 'dm' && currentRoom.ownerUid === user.uid && (
                 <span className="text-[10px] bg-accent/20 text-accent-light px-1.5 py-0.5 rounded shrink-0">👑 방장</span>
               )}
@@ -240,6 +264,9 @@ export default function ChatApp({ user }) {
               <button onClick={() => setShowSearch(true)} title="검색" className="text-gray-400 hover:text-gray-200 px-2">🔍</button>
               {currentRoom.type !== 'dm' && currentRoom.ownerUid === user.uid && (
                 <button onClick={() => setConfirmDeleteRoom(true)} title="방 삭제" className="text-gray-400 hover:text-danger px-2">🗑</button>
+              )}
+              {currentRoom.type !== 'dm' && currentRoom.ownerUid !== user.uid && (
+                <button onClick={() => setConfirmLeaveRoom(true)} title="나가기" className="text-gray-400 hover:text-danger px-2">🚪</button>
               )}
               {currentRoom.type !== 'dm' && (
                 <button onClick={() => setMobilePanel('members')} className="sm:hidden text-gray-400 px-2">👥</button>
@@ -328,6 +355,16 @@ export default function ChatApp({ user }) {
           confirmLabel="삭제"
           onConfirm={handleDeleteRoom}
           onCancel={() => setConfirmDeleteRoom(false)}
+        />
+      )}
+
+      {confirmLeaveRoom && (
+        <ConfirmModal
+          title="채팅방에서 나갈까요?"
+          message={`#${currentRoom.name} 방에서 나갑니다. 다시 들어오려면 초대를 받거나 다시 검색해서 입장해야 해요.`}
+          confirmLabel="나가기"
+          onConfirm={handleLeaveRoom}
+          onCancel={() => setConfirmLeaveRoom(false)}
         />
       )}
 

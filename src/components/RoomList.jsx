@@ -4,7 +4,7 @@ import FriendsPanel from './FriendsPanel';
 
 const TYPE_ICON = { open: '#', team: '🧑‍💼', group: '👥' };
 
-function RoomButton({ room, isActive, onClick, icon, label }) {
+function RoomButton({ room, isActive, onClick, icon, label, online }) {
   return (
     <button
       onClick={onClick}
@@ -12,8 +12,17 @@ function RoomButton({ room, isActive, onClick, icon, label }) {
         isActive ? 'bg-accent/20 text-white' : 'text-gray-400 hover:bg-base-800 hover:text-gray-200'
       }`}
     >
-      <span className="w-8 h-8 rounded-full bg-base-700 flex items-center justify-center text-sm shrink-0">
-        {icon}
+      <span className="relative shrink-0">
+        <span className="w-8 h-8 rounded-full bg-base-700 flex items-center justify-center text-sm">
+          {icon}
+        </span>
+        {online !== undefined && (
+          <span
+            className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-base-900 ${
+              online ? 'bg-online' : 'bg-base-600'
+            }`}
+          />
+        )}
       </span>
       <span className="truncate text-sm font-medium">{label}</span>
     </button>
@@ -25,6 +34,7 @@ export default function RoomList({
   myRooms,
   currentRoomId,
   currentRoom,
+  onlineUsers,
   onSelectRoom,
   onSelectMyRoom,
   onCreateClick,
@@ -36,6 +46,7 @@ export default function RoomList({
   const [tab, setTab] = useState('chats'); // chats | friends
   const teamGroupRooms = myRooms.filter((r) => r.type === 'team' || r.type === 'group');
   const dmRooms = myRooms.filter((r) => r.type === 'dm');
+  const isOnline = (uid) => (onlineUsers || []).some((u) => u.uid === uid && u.state === 'online');
 
   return (
     <div className="h-full flex flex-col bg-base-900 border-r border-base-800">
@@ -123,6 +134,7 @@ export default function RoomList({
                     onClick={() => onSelectMyRoom(room)}
                     icon={(room.otherNickname || '?')[0].toUpperCase()}
                     label={room.otherNickname || 'DM'}
+                    online={room.otherUid ? isOnline(room.otherUid) : undefined}
                   />
                 ))}
               </div>

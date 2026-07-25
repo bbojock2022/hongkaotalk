@@ -112,11 +112,14 @@ export async function getRoomById(roomId) {
 
 // ---------- 참여자(방 멤버) ----------
 
+// 이미 멤버인지 여부를 알아야 '입장' 메시지를 처음 한 번만 보낼 수 있어서
+// 쓰기 전에 존재 여부를 확인합니다. 반환값 true면 이번이 첫 입장입니다.
 export async function joinRoomMembers(roomId, uid, nickname) {
-  await setDoc(doc(db, 'rooms', roomId, 'members', uid), {
-    nickname,
-    joinedAt: serverTimestamp(),
-  });
+  const ref = doc(db, 'rooms', roomId, 'members', uid);
+  const snap = await getDoc(ref);
+  const isNewMember = !snap.exists();
+  await setDoc(ref, { nickname, joinedAt: serverTimestamp() }, { merge: true });
+  return isNewMember;
 }
 
 export async function leaveRoomMembers(roomId, uid) {

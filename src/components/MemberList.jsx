@@ -24,9 +24,12 @@ export default function MemberList({ members, onlineUsers, ownerUid, myUid, onKi
                   }`}
                 />
               </div>
-              <span className={`text-sm truncate flex items-center gap-1 flex-1 min-w-0 ${isOnline ? 'text-gray-200' : 'text-gray-500'}`}>
+              <span className={`text-sm truncate flex items-center gap-1.5 flex-1 min-w-0 ${isOnline ? 'text-gray-200' : 'text-gray-500'}`}>
                 {isOwnerMember && <span title="방장">👑</span>}
                 <span className="truncate">{m.nickname}</span>
+                <span className={`text-[10px] shrink-0 ${isOnline ? 'text-online' : 'text-gray-600'}`}>
+                  {isOnline ? '온라인' : '오프라인'}
+                </span>
               </span>
               {iAmOwner && !isOwnerMember && (
                 <button
