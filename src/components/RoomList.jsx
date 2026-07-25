@@ -1,3 +1,7 @@
+import { useState } from 'react';
+import NotificationBell from './NotificationBell';
+import FriendsPanel from './FriendsPanel';
+
 const TYPE_ICON = { open: '#', team: '🧑‍💼', group: '👥' };
 
 function RoomButton({ room, isActive, onClick, icon, label }) {
@@ -20,13 +24,16 @@ export default function RoomList({
   openRooms,
   myRooms,
   currentRoomId,
+  currentRoom,
   onSelectRoom,
   onSelectMyRoom,
   onCreateClick,
-  onFriendsClick,
+  onOpenDM,
+  onJoinRoomInvite,
   user,
   onLogout,
 }) {
+  const [tab, setTab] = useState('chats'); // chats | friends
   const teamGroupRooms = myRooms.filter((r) => r.type === 'team' || r.type === 'group');
   const dmRooms = myRooms.filter((r) => r.type === 'dm');
 
@@ -35,13 +42,7 @@ export default function RoomList({
       <div className="p-4 border-b border-base-800 flex items-center justify-between">
         <h1 className="font-bold text-lg tracking-tight">Wavelength</h1>
         <div className="flex items-center gap-1">
-          <button
-            onClick={onFriendsClick}
-            title="친구"
-            className="w-8 h-8 rounded-lg bg-base-800 hover:bg-base-700 flex items-center justify-center text-sm transition-colors"
-          >
-            👤
-          </button>
+          <NotificationBell user={user} onJoinRoomInvite={onJoinRoomInvite} />
           <button
             onClick={onCreateClick}
             title="채팅방 만들기"
@@ -52,62 +53,87 @@ export default function RoomList({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-4">
-        <div>
-          <p className="text-xs text-gray-500 px-2 py-1 uppercase tracking-wide">오픈채팅</p>
-          {openRooms.length === 0 && (
-            <p className="text-xs text-gray-600 px-3 py-2">아직 오픈채팅이 없어요.</p>
-          )}
-          <div className="space-y-1">
-            {openRooms.map((room) => (
-              <RoomButton
-                key={room.id}
-                room={room}
-                isActive={currentRoomId === room.id}
-                onClick={() => onSelectRoom(room)}
-                icon={room.isPrivate ? '🔒' : TYPE_ICON.open}
-                label={room.name}
-              />
-            ))}
-          </div>
-        </div>
+      <div className="flex border-b border-base-800 shrink-0">
+        <button
+          onClick={() => setTab('chats')}
+          className={`flex-1 text-sm font-medium py-2.5 transition-colors ${
+            tab === 'chats' ? 'text-white border-b-2 border-accent' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          채팅
+        </button>
+        <button
+          onClick={() => setTab('friends')}
+          className={`flex-1 text-sm font-medium py-2.5 transition-colors ${
+            tab === 'friends' ? 'text-white border-b-2 border-accent' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          친구
+        </button>
+      </div>
 
-        {teamGroupRooms.length > 0 && (
+      {tab === 'chats' ? (
+        <div className="flex-1 overflow-y-auto p-2 space-y-4">
           <div>
-            <p className="text-xs text-gray-500 px-2 py-1 uppercase tracking-wide">내 채팅방</p>
+            <p className="text-xs text-gray-500 px-2 py-1 uppercase tracking-wide">오픈채팅</p>
+            {openRooms.length === 0 && (
+              <p className="text-xs text-gray-600 px-3 py-2">아직 오픈채팅이 없어요.</p>
+            )}
             <div className="space-y-1">
-              {teamGroupRooms.map((room) => (
+              {openRooms.map((room) => (
                 <RoomButton
-                  key={room.roomId}
+                  key={room.id}
                   room={room}
-                  isActive={currentRoomId === room.roomId}
-                  onClick={() => onSelectMyRoom(room)}
-                  icon={room.isPrivate ? '🔒' : TYPE_ICON[room.type]}
+                  isActive={currentRoomId === room.id}
+                  onClick={() => onSelectRoom(room)}
+                  icon={room.isPrivate ? '🔒' : TYPE_ICON.open}
                   label={room.name}
                 />
               ))}
             </div>
           </div>
-        )}
 
-        {dmRooms.length > 0 && (
-          <div>
-            <p className="text-xs text-gray-500 px-2 py-1 uppercase tracking-wide">다이렉트 메시지</p>
-            <div className="space-y-1">
-              {dmRooms.map((room) => (
-                <RoomButton
-                  key={room.roomId}
-                  room={room}
-                  isActive={currentRoomId === room.roomId}
-                  onClick={() => onSelectMyRoom(room)}
-                  icon={(room.otherNickname || '?')[0].toUpperCase()}
-                  label={room.otherNickname || 'DM'}
-                />
-              ))}
+          {teamGroupRooms.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-500 px-2 py-1 uppercase tracking-wide">내 채팅방</p>
+              <div className="space-y-1">
+                {teamGroupRooms.map((room) => (
+                  <RoomButton
+                    key={room.roomId}
+                    room={room}
+                    isActive={currentRoomId === room.roomId}
+                    onClick={() => onSelectMyRoom(room)}
+                    icon={room.isPrivate ? '🔒' : TYPE_ICON[room.type]}
+                    label={room.name}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+
+          {dmRooms.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-500 px-2 py-1 uppercase tracking-wide">다이렉트 메시지</p>
+              <div className="space-y-1">
+                {dmRooms.map((room) => (
+                  <RoomButton
+                    key={room.roomId}
+                    room={room}
+                    isActive={currentRoomId === room.roomId}
+                    onClick={() => onSelectMyRoom(room)}
+                    icon={(room.otherNickname || '?')[0].toUpperCase()}
+                    label={room.otherNickname || 'DM'}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0">
+          <FriendsPanel user={user} currentRoom={currentRoom} onOpenDM={onOpenDM} />
+        </div>
+      )}
 
       <div className="p-3 border-t border-base-800 flex items-center gap-2">
         <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-sm font-semibold shrink-0">

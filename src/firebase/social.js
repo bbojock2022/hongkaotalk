@@ -106,7 +106,7 @@ export async function startDirectMessage(myUid, myNickname, friendUid, friendNic
   const existing = await getDoc(roomRef);
 
   if (!existing.exists()) {
-    await setDoc(roomRef, {
+    const roomData = {
       name: '다이렉트 메시지',
       type: 'dm',
       isPrivate: false,
@@ -115,11 +115,16 @@ export async function startDirectMessage(myUid, myNickname, friendUid, friendNic
       ownerUid: myUid,
       ownerNickname: myNickname,
       dmParticipants: [myUid, friendUid],
+      // 상대방이 아직 방에 join(members 서브컬렉션 기록)하기 전에도
+      // 양쪽 모두 서로의 닉네임을 바로 표시할 수 있도록 방 문서에 같이 저장해둡니다.
+      participantNicknames: { [myUid]: myNickname, [friendUid]: friendNickname },
       memberCount: 2,
       createdAt: serverTimestamp(),
-    });
+    };
+    await setDoc(roomRef, roomData);
     await inviteToRoom(friendUid, { id: roomId, name: `${myNickname}님과의 1:1 대화`, type: 'dm' }, myUid, myNickname);
+    return { id: roomId, ...roomData };
   }
 
-  return { id: roomId, name: '다이렉트 메시지', type: 'dm', dmParticipants: [myUid, friendUid], ownerUid: myUid };
+  return { id: roomId, ...existing.data() };
 }

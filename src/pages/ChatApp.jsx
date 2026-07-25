@@ -7,8 +7,6 @@ import CreateRoomModal from '../components/CreateRoomModal';
 import JoinPasswordModal from '../components/JoinPasswordModal';
 import SearchBar from '../components/SearchBar';
 import ConfirmModal from '../components/ConfirmModal';
-import NotificationBell from '../components/NotificationBell';
-import FriendsModal from '../components/FriendsModal';
 import { logOut } from '../firebase/auth';
 import { initPresence, watchOnlineUsers } from '../firebase/presence';
 import {
@@ -42,7 +40,6 @@ export default function ChatApp({ user }) {
   const [pendingRoom, setPendingRoom] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [showFriends, setShowFriends] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [mobilePanel, setMobilePanel] = useState('rooms'); // rooms | chat | members
   const [confirmDeleteRoom, setConfirmDeleteRoom] = useState(false);
@@ -87,6 +84,9 @@ export default function ChatApp({ user }) {
       if (currentRoom.type === 'dm' && currentRoom.dmParticipants) {
         const otherUid = currentRoom.dmParticipants.find((u) => u !== user.uid);
         extra.otherUid = otherUid;
+        if (currentRoom.participantNicknames?.[otherUid]) {
+          extra.otherNickname = currentRoom.participantNicknames[otherUid];
+        }
       }
       upsertMyRoom(user.uid, currentRoom, extra);
 
@@ -183,15 +183,21 @@ export default function ChatApp({ user }) {
     setMobilePanel('chat');
   }
 
-  function handleOpenDM(room, friendNickname) {
-    setShowFriends(false);
+  function handleOpenDM(room) {
+    setJoinError('');
     setMessages([]);
-    setCurrentRoom(room.dmParticipants ? room : { ...room, dmParticipants: [user.uid, room.otherUid] });
+    setCurrentRoom(room);
     setMobilePanel('chat');
   }
 
+  const dmOtherUid =
+    currentRoom?.type === 'dm' ? currentRoom.dmParticipants?.find((u) => u !== user.uid) : null;
   const dmOtherNickname =
-    currentRoom?.type === 'dm' ? members.find((m) => m.uid !== user.uid)?.nickname || '상대방' : null;
+    currentRoom?.type === 'dm'
+      ? currentRoom.participantNicknames?.[dmOtherUid] ||
+        members.find((m) => m.uid !== user.uid)?.nickname ||
+        '상대방'
+      : null;
 
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-base-950 text-gray-100">
@@ -201,10 +207,12 @@ export default function ChatApp({ user }) {
           openRooms={openRooms}
           myRooms={myRooms}
           currentRoomId={currentRoom?.id}
+          currentRoom={currentRoom}
           onSelectRoom={handleSelectRoom}
           onSelectMyRoom={handleSelectMyRoom}
           onCreateClick={() => setShowCreate(true)}
-          onFriendsClick={() => setShowFriends(true)}
+          onOpenDM={handleOpenDM}
+          onJoinRoomInvite={handleJoinRoomInvite}
           user={user}
           onLogout={logOut}
         />
@@ -229,8 +237,6 @@ export default function ChatApp({ user }) {
                 <span className="text-[10px] bg-accent/20 text-accent-light px-1.5 py-0.5 rounded shrink-0">👑 방장</span>
               )}
               <div className="flex-1" />
-              <button onClick={() => setShowFriends(true)} title="친구" className="text-gray-400 hover:text-gray-200 px-2">👤</button>
-              <NotificationBell user={user} onJoinRoomInvite={handleJoinRoomInvite} />
               <button onClick={() => setShowSearch(true)} title="검색" className="text-gray-400 hover:text-gray-200 px-2">🔍</button>
               {currentRoom.type !== 'dm' && currentRoom.ownerUid === user.uid && (
                 <button onClick={() => setConfirmDeleteRoom(true)} title="방 삭제" className="text-gray-400 hover:text-danger px-2">🗑</button>
@@ -259,9 +265,7 @@ export default function ChatApp({ user }) {
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-600 text-sm px-4 text-center gap-3">
             <p>왼쪽에서 채팅방을 선택하거나 새로 만들어보세요.</p>
-            <button onClick={() => setShowFriends(true)} className="text-accent-light hover:underline text-sm">
-              친구 관리 →
-            </button>
+            <p className="text-xs text-gray-700">친구 추가와 1:1 대화는 왼쪽 상단 '친구' 탭에서 할 수 있어요.</p>
           </div>
         )}
       </div>
@@ -283,7 +287,15 @@ export default function ChatApp({ user }) {
         <CreateRoomModal
           user={user}
           onClose={() => setShowCreate(false)}
-          onCreated={() => setShowCreate(false)}
+          onCreated={async (roomId) => {
+            setShowCreate(false);
+            const room = await getRoomById(roomId);
+            if (!room) return;
+            setJoinError('');
+            setMessages([]);
+            setCurrentRoom(room);
+            setMobilePanel('chat');
+          }}
         />
       )}
 
@@ -307,10 +319,6 @@ export default function ChatApp({ user }) {
           onClose={() => setShowSearch(false)}
           onJumpTo={() => setShowSearch(false)}
         />
-      )}
-
-      {showFriends && (
-        <FriendsModal user={user} currentRoom={currentRoom} onClose={() => setShowFriends(false)} onOpenDM={handleOpenDM} />
       )}
 
       {confirmDeleteRoom && (
