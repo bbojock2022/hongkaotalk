@@ -3,9 +3,9 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { sanitizeText } from '../utils/sanitize';
 import { findUsersByNickname } from '../firebase/firestore';
-import { sendFriendRequest, listenFriends, removeFriend, inviteToRoom } from '../firebase/social';
+import { sendFriendRequest, listenFriends, removeFriend, inviteToRoom, startDirectMessage } from '../firebase/social';
 
-export default function FriendsModal({ user, currentRoom, onClose }) {
+export default function FriendsModal({ user, currentRoom, onClose, onOpenDM }) {
   const [friends, setFriends] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -19,7 +19,7 @@ export default function FriendsModal({ user, currentRoom, onClose }) {
     if (!searchTerm.trim()) return;
     const results = await findUsersByNickname(searchTerm);
     setSearchResults(results.filter((r) => r.uid !== user.uid));
-    if (results.length === 0) setMessage('해당 닉네임의 사용자를 찾을 수 없습니다.');
+    if (results.length === 0) setMessage('해당 닉네임의 사용자를 찾을 수 없습니다. (온라인 여부와 상관없이 요청 가능해요)');
   }
 
   async function handleAddFriend(target) {
@@ -32,9 +32,14 @@ export default function FriendsModal({ user, currentRoom, onClose }) {
   }
 
   async function handleInvite(friendUid, friendNickname) {
-    if (!currentRoom) return;
+    if (!currentRoom || currentRoom.type === 'dm') return;
     await inviteToRoom(friendUid, currentRoom, user.uid, user.displayName);
     setMessage(`${friendNickname}님을 #${currentRoom.name}로 초대했습니다.`);
+  }
+
+  async function handleStartDM(friendUid, friendNickname) {
+    const room = await startDirectMessage(user.uid, user.displayName, friendUid, friendNickname);
+    onOpenDM(room, friendNickname);
   }
 
   return (
@@ -78,7 +83,14 @@ export default function FriendsModal({ user, currentRoom, onClose }) {
           <p className="text-xs text-gray-500 mb-1">내 친구 — {friends.length}</p>
           {friends.length === 0 && <p className="text-sm text-gray-600 py-4 text-center">아직 친구가 없어요.</p>}
           {friends.map((f) => (
-            <FriendRow key={f.uid} friendUid={f.uid} currentRoom={currentRoom} onInvite={handleInvite} onRemove={() => removeFriend(user.uid, f.uid)} />
+            <FriendRow
+              key={f.uid}
+              friendUid={f.uid}
+              currentRoom={currentRoom}
+              onInvite={handleInvite}
+              onStartDM={handleStartDM}
+              onRemove={() => removeFriend(user.uid, f.uid)}
+            />
           ))}
         </div>
       </div>
@@ -86,7 +98,7 @@ export default function FriendsModal({ user, currentRoom, onClose }) {
   );
 }
 
-function FriendRow({ friendUid, currentRoom, onInvite, onRemove }) {
+function FriendRow({ friendUid, currentRoom, onInvite, onStartDM, onRemove }) {
   const [profile, setProfile] = useState(null);
 
   useEffect(() => {
@@ -110,7 +122,14 @@ function FriendRow({ friendUid, currentRoom, onInvite, onRemove }) {
         <span className="text-sm truncate">{sanitizeText(nickname)}</span>
       </div>
       <div className="flex gap-1 shrink-0">
-        {currentRoom && (
+        <button
+          onClick={() => onStartDM(friendUid, nickname)}
+          title="1:1 채팅"
+          className="text-xs px-2 py-1 rounded bg-base-700 hover:bg-accent"
+        >
+          💬
+        </button>
+        {currentRoom && currentRoom.type !== 'dm' && (
           <button
             onClick={() => onInvite(friendUid, nickname)}
             title="현재 채팅방으로 초대"

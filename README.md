@@ -20,19 +20,24 @@ Discord 스타일 3단 레이아웃(채팅방 목록 / 메시지 / 접속자 목
 - 입장/퇴장 시스템 메시지 알림
 
 ### 채팅방 시스템
-- 채팅방 생성 (이름 지정)
-- 공개 채팅방 / 비밀번호 채팅방
-- 채팅방 목록 실시간 표시 (새 방 생성 시 모두에게 즉시 반영)
-- 채팅방 입장 시 참여자 목록에 자동 등록, 퇴장 시 자동 해제
+- **채팅방 종류 3가지**
+  - **오픈채팅**: 메인 화면(왼쪽 목록)에 항상 공개 표시, 누구나 자유롭게 입장
+  - **팀채팅**: 목록에 공개되지 않고, 초대받은 사람만 입장 가능
+  - **단체채팅**: 팀채팅과 동일하게 초대 전용 (친목/모임용으로 라벨만 구분)
+- **1:1 다이렉트 메시지(DM)**: 친구 목록에서 바로 시작, 사이드바에 별도 섹션으로 표시 (접속자 목록 없이 순수 1:1 대화)
+- 공개 채팅방 / 비밀번호 채팅방 (모든 종류에 적용 가능)
+- **비밀번호 계정별 1회 입력**: 한 번 맞춘 비밀번호는 그 계정에서는 다시 묻지 않고 바로 입장
+- 채팅방 입장 시 참여자 목록에 자동 등록, 퇴장 시 자동 해제 (오픈/팀/단체채팅만 해당, DM은 입장 알림 없음)
 - **방장(👑)**: 방을 만든 사람이 자동으로 방장이 되며, 접속자 목록에 왕관 배지로 표시
 - **방 삭제**: 방장만 채팅방을 삭제할 수 있음 (확인 모달 후 삭제)
-- **강퇴(추방)**: 방장이 다른 참여자를 방에서 내보낼 수 있음 (강퇴 시 시스템 메시지로 안내)
+- **강퇴(추방)**: 방장이 다른 참여자를 방에서 내보낼 수 있음. 강퇴된 사용자는 같은 방에 다시 입장할 수 없도록 서버 규칙으로 차단됨
 
 ### 친구 & 초대
-- 닉네임으로 사용자 검색 → 친구 요청 보내기
+- 닉네임으로 사용자 검색 → 친구 요청 보내기 (**상대방이 오프라인이어도 요청 가능**)
 - 친구 요청 수락/거절 (알림 벨에서 실시간 확인)
 - 내 친구 목록 (친구 삭제 가능)
-- 현재 보고 있는 채팅방으로 친구를 초대 (초대 알림을 받은 친구는 알림 벨에서 바로 "입장" 가능)
+- 친구를 현재 보고 있는 팀/단체채팅방으로 초대 (초대 알림을 받은 친구는 알림 벨에서 바로 "입장" 가능)
+- 친구와 1:1 채팅(DM) 바로 시작 — 상대는 대화 신청 알림을 받고 "입장"하면 대화창이 열림
 
 ### 메시지 기능
 - 이모지 선택기
@@ -98,17 +103,27 @@ Discord 스타일 3단 레이아웃(채팅방 목록 / 메시지 / 접속자 목
   /users/{uid}/friendRequests/{fromUid}   ← 받은 친구 요청함 (문서 id = 보낸 사람 uid)
     - fromUid, fromNickname, toUid, toNickname, createdAt
 
-  /users/{uid}/roomInvites/{inviteId}     ← 받은 방 초대함
-    - roomId, roomName, fromUid, fromNickname, createdAt
+  /users/{uid}/roomInvites/{inviteId}     ← 받은 방 초대함 (팀/단체채팅 초대 + 1:1 대화 신청)
+    - roomId, roomName, roomType, fromUid, fromNickname, createdAt
+
+  /users/{uid}/myRooms/{roomId}           ← 내가 참여 중인 방 미러 (사이드바 "내 채팅방"/"DM" 목록용, 본인만 읽고 씀)
+    - roomId, type, name, isPrivate, ownerUid, otherUid, otherNickname(DM 전용), updatedAt
+
+  /users/{uid}/unlockedRooms/{roomId}     ← 비밀번호를 한 번 맞춘 방 기록 (계정별, 다음부터 재입력 생략)
+    - unlockedAt
 
 /friendships/{pairId}      ← pairId = 정렬된 "uidA_uidB"
   - members: [uidA, uidB], createdAt
 
 /rooms/{roomId}
-  - name, isPrivate, passwordHash, salt, ownerUid, ownerNickname, memberCount, createdAt
+  - name, type('open'|'team'|'group'|'dm'), isPrivate, passwordHash, salt,
+    ownerUid, ownerNickname, memberCount, createdAt, dmParticipants(DM 전용 uid 2개)
 
   /rooms/{roomId}/members/{uid}
     - nickname, joinedAt
+
+  /rooms/{roomId}/banned/{uid}            ← 강퇴된 사용자 명단 (방장만 기록, 재입장 차단용)
+    - bannedAt
 
   /rooms/{roomId}/messages/{messageId}
     - senderUid, senderNickname, text, replyTo, mentions[], deleted, createdAt
@@ -130,7 +145,7 @@ Realtime Database:
 │  │                 MemberList, CreateRoomModal, JoinPasswordModal, SearchBar,
 │  │                 ConfirmModal, NotificationBell, FriendsModal
 │  ├ pages/          Login, Signup, ChatApp
-│  ├ firebase/       config(초기화), auth, firestore, presence, social(친구/초대)
+│  ├ firebase/       config(초기화), auth, firestore(방/메시지/비번기억/내방목록), presence, social(친구/DM/초대)
 │  ├ utils/          sanitize(XSS 방어), validate(입력검증), hash(비밀번호 해시), rateLimit(스팸방지)
 │  └ styles/         index.css (Tailwind + 다크테마)
 ├ firestore.rules          Firestore 보안 규칙
@@ -213,7 +228,7 @@ Firebase 콘솔 → Authentication → Settings → "승인된 도메인"에 Clo
 ### 코드를 수정했을 때 재배포하는 법
 GitHub 저장소에 바뀐 파일을 다시 업로드(덮어쓰기)만 하면, Cloudflare Pages가 자동으로 다시 빌드·배포합니다 (Git 연결 상태이므로 별도 명령 불필요).
 
-> ⚠️ **주의**: 이번에 방장/강퇴/친구 기능이 추가되면서 `firestore.rules`가 바뀌었습니다. **Firebase 콘솔 → Firestore Database → Rules 탭에서 새 규칙을 다시 게시(Publish)해야** 강퇴·친구요청·방 초대 기능이 "권한 없음" 에러 없이 작동합니다.
+> ⚠️ **주의**: 방장/강퇴/친구/채팅방 종류/DM 기능이 추가되면서 `firestore.rules`가 여러 번 바뀌었습니다. **Firebase 콘솔 → Firestore Database → Rules 탭에서 최신 `firestore.rules` 내용을 다시 게시(Publish)해야** 모든 기능이 "권한 없음" 에러 없이 작동합니다.
 
 ---
 
@@ -225,7 +240,8 @@ GitHub 저장소에 바뀐 파일을 다시 업로드(덮어쓰기)만 하면, C
 - **스팸 방지**: 클라이언트 사이드 rate limit(짧은 시간 내 과다 전송 차단)만 적용되어 있습니다. 악의적인 사용자가 우회하면 무력화될 수 있습니다. 강력한 방지가 필요하면 App Check 활성화 또는 Blaze + Cloud Functions 도입을 권장합니다.
 - **시스템 메시지(입장/퇴장 알림)**: 인증된 사용자라면 누구나 `senderUid: 'system'` 메시지를 생성할 수 있는 구조입니다 (소규모/친구 단위 사용을 전제).
 - **이미지 전송 없음**: Firebase Storage를 쓰지 않기로 하면서 이미지 첨부 기능을 제거했습니다. 필요해지면 Storage를 다시 붙이거나, 외부 이미지 링크(URL)를 텍스트로 붙여넣는 방식으로 확장할 수 있습니다.
-- **방 삭제 시 하위 데이터 잔존**: Firestore는 상위 문서를 지워도 하위 컬렉션(`messages`, `members`)을 자동으로 함께 지우지 않습니다. 방을 삭제하면 목록/입장에서는 사라지지만, 메시지 데이터 자체는 Firestore에 남아 있을 수 있습니다. 완전 삭제가 중요하다면 Blaze + Cloud Functions로 재귀 삭제를 붙이는 것을 권장합니다.
+- **방 삭제 시 하위 데이터 잔존**: Firestore는 상위 문서를 지워도 하위 컬렉션(`messages`, `members`, `banned`)을 자동으로 함께 지우지 않습니다. 또한 그 방에 있던 다른 사람들의 `myRooms` 사이드바 미러도 자동으로 지워지지 않아, 삭제된 방이 잠깐 목록에 남아 보일 수 있습니다(클릭하면 방을 찾을 수 없어 자동으로 정리됨). 완전 삭제가 중요하다면 Blaze + Cloud Functions로 재귀 삭제를 붙이는 것을 권장합니다.
 - **친구/초대 시스템**: 서버 검증 없이 클라이언트가 직접 Firestore 규칙 안에서 요청을 처리하는 구조라, "받은 요청을 수락하면 친구가 된다"는 흐름이 Cloud Functions 없이 규칙만으로 단순화되어 있습니다. 소규모 사용에는 문제없는 수준입니다.
+- **팀/단체채팅은 목록에 없을 뿐 URL/ID를 알면 이론상 읽기는 가능**: Firestore 규칙상 로그인한 사용자는 어떤 방 문서든 읽을 수 있어(멤버가 아니어도), "목록에 안 보인다 = 완전히 비공개"는 아닙니다. 실질적인 진입은 초대(멤버 추가)를 통해서만 가능하지만, 정말 민감한 대화라면 비밀번호까지 함께 설정하는 것을 권장합니다.
 
 이런 한계들은 "친구/팀 단위 소규모 사용"에는 실질적으로 큰 문제가 되지 않지만, 불특정 다수에게 공개하는 서비스로 키우실 경우 Blaze 플랜 업그레이드 + Cloud Functions 도입을 권장드립니다.

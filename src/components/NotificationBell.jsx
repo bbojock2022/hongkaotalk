@@ -72,11 +72,13 @@ export default function NotificationBell({ user, onJoinRoomInvite }) {
 
           {invites.length > 0 && (
             <div>
-              <p className="text-xs text-gray-500 px-2 py-1">방 초대</p>
+              <p className="text-xs text-gray-500 px-2 py-1">초대 / 대화 신청</p>
               {invites.map((inv) => (
                 <div key={inv.id} className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-base-800">
                   <span className="text-sm truncate">
-                    {sanitizeText(inv.fromNickname)} → #{sanitizeText(inv.roomName)}
+                    {inv.roomType === 'dm'
+                      ? `${sanitizeText(inv.fromNickname)}님이 1:1 대화를 신청했어요`
+                      : `${sanitizeText(inv.fromNickname)} → #${sanitizeText(inv.roomName)}`}
                   </span>
                   <div className="flex gap-1 shrink-0">
                     <button

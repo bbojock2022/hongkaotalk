@@ -3,8 +3,15 @@ import { validateRoomName, validateRoomPassword } from '../utils/validate';
 import { sanitizeText } from '../utils/sanitize';
 import { createRoom } from '../firebase/firestore';
 
+const TYPE_OPTIONS = [
+  { value: 'open', label: '오픈채팅', desc: '누구나 메인 목록에서 보고 자유롭게 입장' },
+  { value: 'team', label: '팀채팅', desc: '초대받은 사람만 입장 (업무/소모임용)' },
+  { value: 'group', label: '단체채팅', desc: '초대받은 사람만 입장 (친목/모임용)' },
+];
+
 export default function CreateRoomModal({ user, onClose, onCreated }) {
   const [name, setName] = useState('');
+  const [type, setType] = useState('open');
   const [isPrivate, setIsPrivate] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -27,12 +34,13 @@ export default function CreateRoomModal({ user, onClose, onCreated }) {
     try {
       const roomId = await createRoom({
         name: cleanName,
+        type,
         isPrivate,
         password: isPrivate ? password : null,
         ownerUid: user.uid,
         ownerNickname: user.displayName,
       });
-      onCreated(roomId);
+      onCreated(roomId, type);
     } catch (err) {
       setError('채팅방 생성에 실패했습니다.');
     } finally {
@@ -46,6 +54,33 @@ export default function CreateRoomModal({ user, onClose, onCreated }) {
         <h2 className="text-lg font-semibold mb-4">새 채팅방 만들기</h2>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
+            <label className="block text-xs text-gray-400 mb-1">종류</label>
+            <div className="space-y-1.5">
+              {TYPE_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  className={`flex items-start gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                    type === opt.value ? 'border-accent bg-accent/10' : 'border-base-700 hover:bg-base-800'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="roomType"
+                    value={opt.value}
+                    checked={type === opt.value}
+                    onChange={() => setType(opt.value)}
+                    className="accent-accent mt-0.5"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">{opt.label}</span>
+                    <span className="block text-xs text-gray-500">{opt.desc}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
             <label className="block text-xs text-gray-400 mb-1">채팅방 이름</label>
             <input
               className="input-field"
@@ -53,7 +88,6 @@ export default function CreateRoomModal({ user, onClose, onCreated }) {
               onChange={(e) => setName(e.target.value)}
               maxLength={30}
               placeholder="예: 자유수다방"
-              autoFocus
             />
           </div>
 
@@ -64,7 +98,7 @@ export default function CreateRoomModal({ user, onClose, onCreated }) {
               onChange={(e) => setIsPrivate(e.target.checked)}
               className="accent-accent w-4 h-4"
             />
-            비밀번호로 보호하기
+            비밀번호로 보호하기 (계정별로 1회만 입력하면 이후 자동 입장)
           </label>
 
           {isPrivate && (
