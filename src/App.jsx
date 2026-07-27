@@ -15,7 +15,7 @@ export default function App() {
 
   if (user === undefined) {
     return (
-      <div className="h-screen flex items-center justify-center bg-base-950">
+      <div className="h-dvh flex items-center justify-center bg-base-950">
         <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
       </div>
     );

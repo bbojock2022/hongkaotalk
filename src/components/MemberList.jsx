@@ -1,3 +1,5 @@
+import Avatar from './Avatar';
+
 export default function MemberList({ members, onlineUsers, ownerUid, myUid, onKick }) {
   const onlineMap = new Map(onlineUsers.map((u) => [u.uid, u.state === 'online']));
   const sorted = [...members].sort((a, b) => (onlineMap.get(b.uid) ? 1 : 0) - (onlineMap.get(a.uid) ? 1 : 0));
@@ -15,9 +17,7 @@ export default function MemberList({ members, onlineUsers, ownerUid, myUid, onKi
           return (
             <div key={m.uid} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-base-800 group">
               <div className="relative shrink-0">
-                <div className="w-8 h-8 rounded-full bg-base-700 flex items-center justify-center text-xs font-semibold">
-                  {(m.nickname || '?')[0].toUpperCase()}
-                </div>
+                <Avatar nickname={m.nickname} avatarColor={m.avatarColor} avatarEmoji={m.avatarEmoji} className="w-8 h-8 text-xs" />
                 <span
                   className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-base-900 ${
                     isOnline ? 'bg-online' : 'bg-base-600'

@@ -114,11 +114,20 @@ export async function getRoomById(roomId) {
 
 // 이미 멤버인지 여부를 알아야 '입장' 메시지를 처음 한 번만 보낼 수 있어서
 // 쓰기 전에 존재 여부를 확인합니다. 반환값 true면 이번이 첫 입장입니다.
-export async function joinRoomMembers(roomId, uid, nickname) {
+export async function joinRoomMembers(roomId, uid, nickname, avatar = {}) {
   const ref = doc(db, 'rooms', roomId, 'members', uid);
   const snap = await getDoc(ref);
   const isNewMember = !snap.exists();
-  await setDoc(ref, { nickname, joinedAt: serverTimestamp() }, { merge: true });
+  await setDoc(
+    ref,
+    {
+      nickname,
+      joinedAt: serverTimestamp(),
+      avatarColor: avatar.avatarColor || null,
+      avatarEmoji: avatar.avatarEmoji || null,
+    },
+    { merge: true }
+  );
   return isNewMember;
 }
 
@@ -141,21 +150,28 @@ export function listenRoomMembers(roomId, callback) {
 
 // ---------- 메시지 ----------
 
-export function listenMessages(roomId, callback, messageLimit = 100) {
+// 오래된 메시지부터 limit개만 가져오면, 대화가 길어졌을 때 최신 메시지가 아예
+// 조회 범위 밖으로 밀려나 "메시지를 보내도 화면에 안 뜨는" 문제가 생깁니다.
+// 그래서 최신 N개를 내림차순으로 가져온 뒤, 화면 표시용으로 다시 뒤집습니다.
+export function listenMessages(roomId, callback, messageLimit = 200) {
   const q = query(
     collection(db, 'rooms', roomId, 'messages'),
-    orderBy('createdAt', 'asc'),
+    orderBy('createdAt', 'desc'),
     limit(messageLimit)
   );
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    const msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    msgs.reverse();
+    callback(msgs);
   });
 }
 
-export async function sendMessage(roomId, { senderUid, senderNickname, text, replyTo, mentions }) {
+export async function sendMessage(roomId, { senderUid, senderNickname, senderAvatarColor, senderAvatarEmoji, text, replyTo, mentions }) {
   await addDoc(collection(db, 'rooms', roomId, 'messages'), {
     senderUid,
     senderNickname,
+    senderAvatarColor: senderAvatarColor || null,
+    senderAvatarEmoji: senderAvatarEmoji || null,
     text: text || null,
     replyTo: replyTo || null,
     mentions: mentions || [],
@@ -183,12 +199,13 @@ export async function sendSystemMessage(roomId, text) {
 
 export async function searchMessages(roomId, keyword) {
   // Firestore는 부분 문자열 검색을 기본 지원하지 않으므로,
-  // 소규모 방 기준으로 클라이언트에서 필터링합니다.
-  const snap = await getDocs(collection(db, 'rooms', roomId, 'messages'));
-  const kw = keyword.toLowerCase();
+  // 최근 메시지를 기준으로 클라이언트에서 필터링합니다.
+  const q = query(collection(db, 'rooms', roomId, 'messages'), orderBy('createdAt', 'desc'), limit(500));
+  const snap = await getDocs(q);
+  const kw = keyword.trim().toLowerCase().replace(/\s+/g, ' ');
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((m) => !m.deleted && m.text && m.text.toLowerCase().includes(kw));
+    .filter((m) => !m.deleted && !m.system && m.text && m.text.toLowerCase().replace(/\s+/g, ' ').includes(kw));
 }
 
 // ---------- 유저 검색 (친구 추가용) ----------
@@ -197,4 +214,16 @@ export async function findUsersByNickname(nickname) {
   const q = query(collection(db, 'users'), where('nickname', '==', nickname.trim()));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+}
+
+// ---------- 프로필 꾸미기 (아바타 색상/이모지, 상태 메시지) ----------
+
+export function listenUserProfile(uid, callback) {
+  return onSnapshot(doc(db, 'users', uid), (snap) => {
+    callback(snap.exists() ? { uid: snap.id, ...snap.data() } : null);
+  });
+}
+
+export async function updateUserProfile(uid, data) {
+  await updateDoc(doc(db, 'users', uid), data);
 }

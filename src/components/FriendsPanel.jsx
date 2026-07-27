@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import Avatar from './Avatar';
 import { sanitizeText } from '../utils/sanitize';
 import { findUsersByNickname } from '../firebase/firestore';
 import { sendFriendRequest, listenFriends, removeFriend, inviteToRoom, startDirectMessage } from '../firebase/social';
@@ -109,9 +110,7 @@ function FriendRow({ friendUid, currentRoom, onInvite, onStartDM, onRemove }) {
   return (
     <div className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-base-800">
       <div className="flex items-center gap-2 min-w-0">
-        <div className="w-7 h-7 rounded-full bg-base-700 flex items-center justify-center text-xs font-semibold shrink-0">
-          {nickname[0]?.toUpperCase() || '?'}
-        </div>
+        <Avatar nickname={nickname} avatarColor={profile?.avatarColor} avatarEmoji={profile?.avatarEmoji} className="w-7 h-7 text-xs" />
         <span className="text-sm truncate">{sanitizeText(nickname)}</span>
       </div>
       <div className="flex gap-1 shrink-0">

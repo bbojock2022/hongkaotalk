@@ -7,6 +7,8 @@ import CreateRoomModal from '../components/CreateRoomModal';
 import JoinPasswordModal from '../components/JoinPasswordModal';
 import SearchBar from '../components/SearchBar';
 import ConfirmModal from '../components/ConfirmModal';
+import ProfileModal from '../components/ProfileModal';
+import InviteModal from '../components/InviteModal';
 import { logOut } from '../firebase/auth';
 import { initPresence, watchOnlineUsers } from '../firebase/presence';
 import {
@@ -26,6 +28,7 @@ import {
   upsertMyRoom,
   removeMyRoom,
   listenMyRooms,
+  listenUserProfile,
 } from '../firebase/firestore';
 import { declineRoomInvite } from '../firebase/social';
 import { MessageRateLimiter } from '../utils/rateLimit';
@@ -37,9 +40,12 @@ export default function ChatApp({ user }) {
   const [messages, setMessages] = useState([]);
   const [members, setMembers] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
+  const [myProfile, setMyProfile] = useState(null);
   const [pendingRoom, setPendingRoom] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [mobilePanel, setMobilePanel] = useState('rooms'); // rooms | chat | members
   const [confirmDeleteRoom, setConfirmDeleteRoom] = useState(false);
@@ -58,6 +64,9 @@ export default function ChatApp({ user }) {
     };
   }, [user.uid]);
 
+  // 내 프로필(아바타 색상/이모지, 상태 메시지) 구독
+  useEffect(() => listenUserProfile(user.uid, setMyProfile), [user.uid]);
+
   // 오픈채팅 목록 + 내가 참여 중인 방(팀/단체/DM) 목록 구독
   useEffect(() => listenOpenRooms(setOpenRooms), []);
   useEffect(() => listenMyRooms(user.uid, setMyRooms), [user.uid]);
@@ -70,7 +79,10 @@ export default function ChatApp({ user }) {
     async function join() {
       let isNewMember = false;
       try {
-        isNewMember = await joinRoomMembers(currentRoom.id, user.uid, user.displayName);
+        isNewMember = await joinRoomMembers(currentRoom.id, user.uid, user.displayName, {
+          avatarColor: myProfile?.avatarColor,
+          avatarEmoji: myProfile?.avatarEmoji,
+        });
       } catch (err) {
         // 강퇴당한 방에는 재입장이 규칙으로 차단됨
         if (!cancelled) {
@@ -103,10 +115,17 @@ export default function ChatApp({ user }) {
     const unsubMsg = listenMessages(currentRoom.id, setMessages);
     const unsubMembers = listenRoomMembers(currentRoom.id, (list) => {
       setMembers(list);
-      // DM일 경우 상대방 닉네임을 실시간으로 내 myRooms 미러에도 반영
+      // DM일 경우 상대방 닉네임/아바타를 실시간으로 내 myRooms 미러에도 반영
       if (currentRoom.type === 'dm') {
         const other = list.find((m) => m.uid !== user.uid);
-        if (other) upsertMyRoom(user.uid, currentRoom, { otherUid: other.uid, otherNickname: other.nickname });
+        if (other) {
+          upsertMyRoom(user.uid, currentRoom, {
+            otherUid: other.uid,
+            otherNickname: other.nickname,
+            otherAvatarColor: other.avatarColor || null,
+            otherAvatarEmoji: other.avatarEmoji || null,
+          });
+        }
       }
     });
 
@@ -120,6 +139,16 @@ export default function ChatApp({ user }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRoom?.id]);
+
+  // 프로필(아바타)을 바꾸면 현재 보고 있는 방의 멤버 정보에도 반영
+  useEffect(() => {
+    if (!currentRoom || !myProfile) return;
+    joinRoomMembers(currentRoom.id, user.uid, user.displayName, {
+      avatarColor: myProfile.avatarColor,
+      avatarEmoji: myProfile.avatarEmoji,
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myProfile?.avatarColor, myProfile?.avatarEmoji, currentRoom?.id]);
 
   async function handleSelectRoom(room) {
     setJoinError('');
@@ -159,6 +188,8 @@ export default function ChatApp({ user }) {
     sendMessage(currentRoom.id, {
       senderUid: user.uid,
       senderNickname: user.displayName,
+      senderAvatarColor: myProfile?.avatarColor || null,
+      senderAvatarEmoji: myProfile?.avatarEmoji || null,
       ...payload,
     });
   }
@@ -215,7 +246,7 @@ export default function ChatApp({ user }) {
   const dmOtherOnline = dmOtherUid ? onlineUsers.some((u) => u.uid === dmOtherUid && u.state === 'online') : false;
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden bg-base-950 text-gray-100">
+    <div className="h-dvh w-full flex overflow-hidden bg-base-950 text-gray-100">
       {/* 왼쪽: 채팅방 목록 */}
       <div className={`w-full sm:w-64 shrink-0 ${mobilePanel === 'rooms' ? 'block' : 'hidden'} sm:block`}>
         <RoomList
@@ -224,11 +255,13 @@ export default function ChatApp({ user }) {
           currentRoomId={currentRoom?.id}
           currentRoom={currentRoom}
           onlineUsers={onlineUsers}
+          myProfile={myProfile}
           onSelectRoom={handleSelectRoom}
           onSelectMyRoom={handleSelectMyRoom}
           onCreateClick={() => setShowCreate(true)}
           onOpenDM={handleOpenDM}
           onJoinRoomInvite={handleJoinRoomInvite}
+          onOpenProfile={() => setShowProfile(true)}
           user={user}
           onLogout={logOut}
         />
@@ -262,6 +295,9 @@ export default function ChatApp({ user }) {
               )}
               <div className="flex-1" />
               <button onClick={() => setShowSearch(true)} title="검색" className="text-gray-400 hover:text-gray-200 px-2">🔍</button>
+              {currentRoom.type !== 'dm' && (
+                <button onClick={() => setShowInvite(true)} title="초대" className="text-gray-400 hover:text-gray-200 px-2">➕👤</button>
+              )}
               {currentRoom.type !== 'dm' && currentRoom.ownerUid === user.uid && (
                 <button onClick={() => setConfirmDeleteRoom(true)} title="방 삭제" className="text-gray-400 hover:text-danger px-2">🗑</button>
               )}
@@ -366,6 +402,12 @@ export default function ChatApp({ user }) {
           onConfirm={handleLeaveRoom}
           onCancel={() => setConfirmLeaveRoom(false)}
         />
+      )}
+
+      {showProfile && <ProfileModal user={user} profile={myProfile} onClose={() => setShowProfile(false)} />}
+
+      {showInvite && currentRoom && (
+        <InviteModal user={user} room={currentRoom} onClose={() => setShowInvite(false)} />
       )}
 
       {kickTarget && (

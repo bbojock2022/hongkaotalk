@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import NotificationBell from './NotificationBell';
 import FriendsPanel from './FriendsPanel';
+import Avatar from './Avatar';
 
 const TYPE_ICON = { open: '#', team: '🧑‍💼', group: '👥' };
 
-function RoomButton({ room, isActive, onClick, icon, label, online }) {
+function RoomButton({ isActive, onClick, icon, iconNode, label, online }) {
   return (
     <button
       onClick={onClick}
@@ -13,9 +14,11 @@ function RoomButton({ room, isActive, onClick, icon, label, online }) {
       }`}
     >
       <span className="relative shrink-0">
-        <span className="w-8 h-8 rounded-full bg-base-700 flex items-center justify-center text-sm">
-          {icon}
-        </span>
+        {iconNode || (
+          <span className="w-8 h-8 rounded-full bg-base-700 flex items-center justify-center text-sm">
+            {icon}
+          </span>
+        )}
         {online !== undefined && (
           <span
             className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-base-900 ${
@@ -35,11 +38,13 @@ export default function RoomList({
   currentRoomId,
   currentRoom,
   onlineUsers,
+  myProfile,
   onSelectRoom,
   onSelectMyRoom,
   onCreateClick,
   onOpenDM,
   onJoinRoomInvite,
+  onOpenProfile,
   user,
   onLogout,
 }) {
@@ -129,10 +134,16 @@ export default function RoomList({
                 {dmRooms.map((room) => (
                   <RoomButton
                     key={room.roomId}
-                    room={room}
                     isActive={currentRoomId === room.roomId}
                     onClick={() => onSelectMyRoom(room)}
-                    icon={(room.otherNickname || '?')[0].toUpperCase()}
+                    iconNode={
+                      <Avatar
+                        nickname={room.otherNickname || '?'}
+                        avatarColor={room.otherAvatarColor}
+                        avatarEmoji={room.otherAvatarEmoji}
+                        className="w-8 h-8 text-sm"
+                      />
+                    }
                     label={room.otherNickname || 'DM'}
                     online={room.otherUid ? isOnline(room.otherUid) : undefined}
                   />
@@ -148,13 +159,13 @@ export default function RoomList({
       )}
 
       <div className="p-3 border-t border-base-800 flex items-center gap-2">
-        <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-sm font-semibold shrink-0">
-          {(user.displayName || '?')[0].toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
+        <button onClick={onOpenProfile} title="프로필 꾸미기" className="shrink-0">
+          <Avatar nickname={user.displayName} avatarColor={myProfile?.avatarColor} avatarEmoji={myProfile?.avatarEmoji} className="w-9 h-9 text-sm" />
+        </button>
+        <button onClick={onOpenProfile} className="flex-1 min-w-0 text-left">
           <p className="text-sm font-medium truncate">{user.displayName}</p>
-          <p className="text-xs text-online">온라인</p>
-        </div>
+          <p className="text-xs text-gray-500 truncate">{myProfile?.statusMessage || <span className="text-online">온라인</span>}</p>
+        </button>
         <button onClick={onLogout} title="로그아웃" className="text-gray-500 hover:text-danger text-sm px-2">
           ⏻
         </button>

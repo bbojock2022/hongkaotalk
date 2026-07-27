@@ -114,7 +114,7 @@ service cloud.firestore {
           && (
                !('text' in request.resource.data) ||
                request.resource.data.text == null ||
-               (request.resource.data.text is string && request.resource.data.text.size() <= 1000)
+               (request.resource.data.text is string && request.resource.data.text.size() <= 4000)
              )
           && request.resource.data.createdAt == request.time;
 

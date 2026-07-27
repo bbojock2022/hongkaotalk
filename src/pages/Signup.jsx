@@ -33,7 +33,7 @@ export default function Signup({ onSwitchToLogin }) {
   }
 
   return (
-    <div className="h-screen flex items-center justify-center bg-base-950 px-4">
+    <div className="h-dvh flex items-center justify-center bg-base-950 px-4">
       <div className="card w-full max-w-sm p-8 animate-slide-up">
         <div className="mb-8 text-center">
           <div className="w-12 h-12 rounded-2xl bg-accent mx-auto mb-3 flex items-center justify-center text-xl font-bold">
