@@ -101,6 +101,17 @@ export function listenMyRooms(uid, callback) {
   });
 }
 
+// 방 하나의 최신 메시지 1개만 구독합니다. 브라우저 알림용으로,
+// 지금 보고 있지 않은 방에서도 새 메시지가 왔는지 감지하는 데 씁니다.
+export function listenLatestMessage(roomId, callback) {
+  const q = query(collection(db, 'rooms', roomId, 'messages'), orderBy('createdAt', 'desc'), limit(1));
+  return onSnapshot(q, (snap) => {
+    if (snap.empty) return;
+    const doc0 = snap.docs[0];
+    callback({ id: doc0.id, ...doc0.data() });
+  });
+}
+
 export async function deleteRoom(roomId) {
   await deleteDoc(doc(db, 'rooms', roomId));
 }

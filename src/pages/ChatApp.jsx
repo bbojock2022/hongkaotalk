@@ -14,6 +14,7 @@ import { initPresence, watchOnlineUsers } from '../firebase/presence';
 import {
   listenOpenRooms,
   listenMessages,
+  listenLatestMessage,
   listenRoomMembers,
   joinRoomMembers,
   leaveRoomMembers,
@@ -32,6 +33,7 @@ import {
 } from '../firebase/firestore';
 import { declineRoomInvite } from '../firebase/social';
 import { MessageRateLimiter } from '../utils/rateLimit';
+import { getNotificationPermission, requestNotificationPermission, showMessageNotification, isNotificationSupported } from '../utils/notifications';
 
 export default function ChatApp({ user }) {
   const [openRooms, setOpenRooms] = useState([]);
@@ -52,7 +54,10 @@ export default function ChatApp({ user }) {
   const [confirmLeaveRoom, setConfirmLeaveRoom] = useState(false);
   const [kickTarget, setKickTarget] = useState(null);
   const [joinError, setJoinError] = useState('');
+  const [notifPermission, setNotifPermission] = useState(getNotificationPermission());
   const rateLimiter = useRef(new MessageRateLimiter());
+  const currentRoomIdRef = useRef(null);
+  currentRoomIdRef.current = currentRoom?.id || null;
 
   // 온라인 상태(presence) 초기화
   useEffect(() => {
@@ -70,6 +75,50 @@ export default function ChatApp({ user }) {
   // 오픈채팅 목록 + 내가 참여 중인 방(팀/단체/DM) 목록 구독
   useEffect(() => listenOpenRooms(setOpenRooms), []);
   useEffect(() => listenMyRooms(user.uid, setMyRooms), [user.uid]);
+
+  // 브라우저 알림: 내가 속한 모든 방의 '최신 메시지'를 감시하다가,
+  // 새 메시지가 오면(내가 보낸 게 아니고, 탭이 포커스되어 있지 않을 때) 알림을 띄웁니다.
+  // 지금 이 함수는 탭이 열려있을 때만 동작합니다 — 브라우저를 완전히 닫아도 오는 진짜 푸시 알림은
+  // Firebase Cloud Messaging + 서비스워커가 필요한 별도 기능입니다.
+  useEffect(() => {
+    if (notifPermission !== 'granted') return;
+    const seen = new Map(); // roomId -> 마지막으로 처리한 messageId
+    const initialized = new Set(); // 첫 스냅샷(과거 메시지)은 알림 대상에서 제외
+
+    const unsubs = myRooms.map((room) =>
+      listenLatestMessage(room.roomId, (msg) => {
+        const last = seen.get(room.roomId);
+        seen.set(room.roomId, msg.id);
+        if (!initialized.has(room.roomId)) {
+          initialized.add(room.roomId);
+          return; // 방을 처음 구독했을 때 딸려오는 기존 메시지는 무시
+        }
+        if (msg.id === last) return;
+        if (msg.system || msg.deleted || msg.senderUid === user.uid) return;
+
+        const roomLabel = room.type === 'dm' ? room.otherNickname || 'DM' : room.name;
+        const preview = (msg.text || '').replace(/```[\s\S]*?```/g, '[코드]').replace(/\s+/g, ' ').trim();
+
+        showMessageNotification({
+          title: room.type === 'dm' ? msg.senderNickname : `${roomLabel} · ${msg.senderNickname}`,
+          body: preview.slice(0, 120) || '새 메시지',
+          tag: `room-${room.roomId}`,
+          onClick: async () => {
+            const full = await getRoomById(room.roomId);
+            if (full) {
+              setJoinError('');
+              setMessages([]);
+              setCurrentRoom(full);
+              setMobilePanel('chat');
+            }
+          },
+        });
+      })
+    );
+
+    return () => unsubs.forEach((u) => u());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifPermission, JSON.stringify(myRooms.map((r) => r.roomId))]);
 
   // 현재 방의 메시지/멤버 구독 + 입장/퇴장 처리
   useEffect(() => {
@@ -217,6 +266,11 @@ export default function ChatApp({ user }) {
     setMobilePanel('rooms');
   }
 
+  async function handleEnableNotifications() {
+    const perm = await requestNotificationPermission();
+    setNotifPermission(perm);
+  }
+
   async function handleJoinRoomInvite(invite) {
     const room = await getRoomById(invite.roomId);
     await declineRoomInvite(user.uid, invite.id);
@@ -256,6 +310,9 @@ export default function ChatApp({ user }) {
           currentRoom={currentRoom}
           onlineUsers={onlineUsers}
           myProfile={myProfile}
+          notifPermission={notifPermission}
+          notifSupported={isNotificationSupported()}
+          onEnableNotifications={handleEnableNotifications}
           onSelectRoom={handleSelectRoom}
           onSelectMyRoom={handleSelectMyRoom}
           onCreateClick={() => setShowCreate(true)}

@@ -39,6 +39,9 @@ export default function RoomList({
   currentRoom,
   onlineUsers,
   myProfile,
+  notifPermission,
+  notifSupported,
+  onEnableNotifications,
   onSelectRoom,
   onSelectMyRoom,
   onCreateClick,
@@ -90,6 +93,14 @@ export default function RoomList({
 
       {tab === 'chats' ? (
         <div className="flex-1 overflow-y-auto p-2 space-y-4">
+          {notifSupported && notifPermission === 'default' && (
+            <button
+              onClick={onEnableNotifications}
+              className="w-full text-left px-3 py-2 rounded-lg bg-accent/10 border border-accent/30 text-xs text-accent-light hover:bg-accent/20 transition-colors"
+            >
+              🔔 새 메시지 브라우저 알림 켜기
+            </button>
+          )}
           <div>
             <p className="text-xs text-gray-500 px-2 py-1 uppercase tracking-wide">오픈채팅</p>
             {openRooms.length === 0 && (
