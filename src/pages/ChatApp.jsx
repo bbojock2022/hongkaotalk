@@ -33,7 +33,7 @@ import {
 } from '../firebase/firestore';
 import { declineRoomInvite } from '../firebase/social';
 import { MessageRateLimiter } from '../utils/rateLimit';
-import { getNotificationPermission, requestNotificationPermission, showMessageNotification, isNotificationSupported } from '../utils/notifications';
+import { getNotificationPermission, requestNotificationPermission, showMessageNotification, isNotificationSupported, initNotificationSound, isSoundMuted, setSoundMuted } from '../utils/notifications';
 
 export default function ChatApp({ user }) {
   const [openRooms, setOpenRooms] = useState([]);
@@ -55,6 +55,7 @@ export default function ChatApp({ user }) {
   const [kickTarget, setKickTarget] = useState(null);
   const [joinError, setJoinError] = useState('');
   const [notifPermission, setNotifPermission] = useState(getNotificationPermission());
+  const [soundMuted, setSoundMutedState] = useState(isSoundMuted());
   const rateLimiter = useRef(new MessageRateLimiter());
   const currentRoomIdRef = useRef(null);
   currentRoomIdRef.current = currentRoom?.id || null;
@@ -267,8 +268,15 @@ export default function ChatApp({ user }) {
   }
 
   async function handleEnableNotifications() {
+    initNotificationSound();
     const perm = await requestNotificationPermission();
     setNotifPermission(perm);
+  }
+
+  function handleToggleSound() {
+    const next = !soundMuted;
+    setSoundMuted(next);
+    setSoundMutedState(next);
   }
 
   async function handleJoinRoomInvite(invite) {
@@ -313,6 +321,8 @@ export default function ChatApp({ user }) {
           notifPermission={notifPermission}
           notifSupported={isNotificationSupported()}
           onEnableNotifications={handleEnableNotifications}
+          soundMuted={soundMuted}
+          onToggleSound={handleToggleSound}
           onSelectRoom={handleSelectRoom}
           onSelectMyRoom={handleSelectMyRoom}
           onCreateClick={() => setShowCreate(true)}

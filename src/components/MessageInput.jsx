@@ -1,11 +1,13 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import EmojiPicker from 'emoji-picker-react';
 import { validateMessage, LIMITS } from '../utils/validate';
+import AsciiArtModal from './AsciiArtModal';
 
 export default function MessageInput({ members, replyingTo, onCancelReply, onSend, rateLimiter }) {
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
+  const [showAscii, setShowAscii] = useState(false);
   const [mentionQuery, setMentionQuery] = useState(null);
   const textareaRef = useRef(null);
 
@@ -14,6 +16,11 @@ export default function MessageInput({ members, replyingTo, onCancelReply, onSen
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
   }
+
+  // 이모지/아스키아트처럼 타이핑이 아닌 방식으로 텍스트가 바뀔 때도 높이를 맞춰줌
+  useEffect(() => {
+    autoResize(textareaRef.current);
+  }, [text]);
 
   function handleTextChange(e) {
     const val = e.target.value;
@@ -118,6 +125,15 @@ export default function MessageInput({ members, replyingTo, onCancelReply, onSen
 
         <button
           type="button"
+          onClick={() => setShowAscii(true)}
+          title="이미지 → 아스키 아트로 보내기"
+          className="w-9 h-9 shrink-0 rounded-lg bg-base-800 hover:bg-base-700 flex items-center justify-center text-sm"
+        >
+          🖼️
+        </button>
+
+        <button
+          type="button"
           onClick={() => setShowEmoji((s) => !s)}
           title="이모지"
           className="w-9 h-9 shrink-0 rounded-lg bg-base-800 hover:bg-base-700 flex items-center justify-center text-lg"
@@ -127,6 +143,13 @@ export default function MessageInput({ members, replyingTo, onCancelReply, onSen
 
         <button type="submit" className="btn-primary shrink-0">전송</button>
       </form>
+
+      {showAscii && (
+        <AsciiArtModal
+          onInsert={(block) => setText((t) => (t ? `${t}\n${block}` : block))}
+          onClose={() => setShowAscii(false)}
+        />
+      )}
 
       {text.length > LIMITS.MESSAGE_MAX * 0.8 && (
         <p className={`text-[11px] mt-1 text-right ${text.length > LIMITS.MESSAGE_MAX ? 'text-danger' : 'text-gray-500'}`}>

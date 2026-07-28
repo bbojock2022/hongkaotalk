@@ -42,6 +42,8 @@ export default function RoomList({
   notifPermission,
   notifSupported,
   onEnableNotifications,
+  soundMuted,
+  onToggleSound,
   onSelectRoom,
   onSelectMyRoom,
   onCreateClick,
@@ -62,6 +64,15 @@ export default function RoomList({
         <h1 className="font-bold text-lg tracking-tight">Wavelength</h1>
         <div className="flex items-center gap-1">
           <NotificationBell user={user} onJoinRoomInvite={onJoinRoomInvite} />
+          {notifPermission === 'granted' && (
+            <button
+              onClick={onToggleSound}
+              title={soundMuted ? '알림음 켜기' : '알림음 끄기'}
+              className="w-8 h-8 rounded-lg bg-base-800 hover:bg-base-700 flex items-center justify-center text-sm transition-colors"
+            >
+              {soundMuted ? '🔇' : '🔊'}
+            </button>
+          )}
           <button
             onClick={onCreateClick}
             title="채팅방 만들기"
